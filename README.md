@@ -1,6 +1,6 @@
 ## Lab Assignments Autograder 
 
-This repository contains code used for evaluating lab assignments in the "Introduction to Artificial Intelligence" course at FER.
+This repository contains code used for evaluating lab assignments in the ["Introduction to Artificial Intelligence"](https://www.fer.unizg.hr/predmet/uuui/) course at FER.
 
 Autograder is implemented as a Python script that iterates through students' solutions, runs the tests for a given assignment, and outputs the log file containing evalatuion results.
 
