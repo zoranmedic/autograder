@@ -2,10 +2,12 @@
 
 This repository contains code used for evaluating lab assignments in the ["Introduction to Artificial Intelligence"](https://www.fer.unizg.hr/predmet/uuui/) course at FER.
 
-Autograder is implemented as a Python script that iterates through students' solutions, runs the tests for a given assignment, and outputs the log file containing evalatuion results.
+Autograder is implemented as a Python script that iterates through students' solutions, runs the tests for a given assignment, and outputs the log file containing evaluation results.
 
 For each lab assignment the text files used as input as well as JSON descriptors of tests which should be run, are given in a separate subfolder inside the `data` folder.
 Files for all new assignments should be placed in a new subfolder inside the `data` folder. Each assignment folder should contain two subfolders: (1) `files`, with all the input files that will be passed to the solution during evaluation, and (2) `test_suites`, with all the JSON files in which evaluation tests are defined.
+
+In addition, each assignments subfolder contains a folder with directory templates for three languages supported: Java, Python, and C++.
 
 ## Arguments
 
@@ -14,7 +16,6 @@ The autograder script accepts the following arguments:
 * `-solutions`: path to the folder containing students' solutions,
 * `-test_files`: name of the folder inside `data/lab[x]` folder containing files to be used as input,
 * `-test_suites`: name of the folder inside `data/lab[x]` folder containing JSON test suites to be run,
-* `-evaluation_log`: name of the file in which complete log for all solutions is printed,
 * `-for_jmbag`: JMBAG or name of the student which solution should be evaluated (used for evaluating single solution in a folder),
 * `--root`: flag indicating that solutions folder contains subfolders with students' solutions.
 
@@ -28,12 +29,12 @@ and then place that archive inside `01234566789/` folder, which should finally b
 The full path to the zip archive should then be: `solutions/0123456789/0123456789.zip`.
 An example folder with a zip archive containing (non-working) solution is given in the `solutions/` folder.
 
-2. Run the following command to obtain the results for the solution to the first lab assignment:
+2. Run the following command to obtain the results for the solution to the first lab assignment places in the `solutions/` folder:
 
 ```python
 python autograder.py lab1
 ```
-3. Check out the general output in `full.log` file and a more detailed output (in case of failed tests) in the log files inside each student's folder inside `solutions/` folder.
+3. Check the output in the `autograder.log` file inside each student's folder inside `solutions/` folder.
 
 The autograder will perform three steps when evaluating your solution in the following order:
 1. validating that the folder structure is as requested,
@@ -41,20 +42,17 @@ The autograder will perform three steps when evaluating your solution in the fol
 3. evaluating the solution against the provided test cases.
 If steps 1 or 2 fail, the subsequent step(s) are not executed.
 
-The autograder's general output will be printed in a single file for all solutions provided inside the `solutions/` folder.
-In addition, a detailed output for each provided solution will be printed inside that solution's folder in the `solutions/` folder.
-
 ## Prerequisites
 
-The code for autograder was tested with Python 3.8.
+The code for autograder was tested with Python 3.7.4.
 
 We suggest you use `conda` for creating a virtual environment with that specific version of Python. 
 Instructions for installing conda are available here: https://docs.conda.io/en/latest/miniconda.html
 
-Once you install conda, you can run the following command to create a Python 3.8 environment:
+Once you install conda, you can run the following command to create a Python 3.7.4 environment:
 
 ```bash
-conda create -n autograder_env python=3.8
+conda create -n autograder_env python=3.7.4
 ```
 
 Once the environment is created, you can activate it using:
