@@ -99,7 +99,7 @@ def log_results(log_file, report, verbose=False):
     total_tests += len(test_instances)
     total_passed += sum(i['test_passed'] for i in test_instances)
   log_file.write("\n=== TOTAL RESULTS ===\n")
-  log_file.write(f"{total_passed} / {total_tests} tests passed. ({total_passed * 100. / total_tests}%)\n")
+  log_file.write(f"{total_passed} / {total_tests} tests passed. ({total_passed * 100. / total_tests:.2f}%)\n")
 
   for subtask in sorted(report['evaluation_results'], reverse=True):  # print RESOLUTION first
     log_file.write(f"\n== {subtask.upper()} ==\n")
@@ -107,36 +107,57 @@ def log_results(log_file, report, verbose=False):
     test_instances = report['evaluation_results'][subtask]
     subtask_tests = len(test_instances)
     passed_tests = sum(i['test_passed'] for i in test_instances)
-    log_file.write(f"  Passed {passed_tests} / {subtask_tests} tests.\n")
+    log_file.write(f"  Passed {passed_tests} / {subtask_tests} tests. Failed {subtask_tests - passed_tests} tests.\n")
+
+  for subtask in sorted(report['evaluation_results'], reverse=True):  # print RESOLUTION first
+    log_file.write(f"\n== {subtask.upper()} ==\n")
+    test_instances = report['evaluation_results'][subtask]
 
     if verbose:  # logged in a separate file for each student with detailed info about failed tests
+      failed_test_instances, passed_test_instances = [], []
       for i in test_instances:
         if i['test_passed']:
-          log_file.write(f"\n- Passed test: {i['test_name']}\n")
-          log_file.write("-> Complete obtained output:\n")
-          log_file.write(i['output'] + '\n')
+          passed_test_instances.append(i)
         else:
-          log_file.write(f"\n- Failed test: {i['command']}\n")
+          failed_test_instances.append(i)
 
-          if not i['execute']:
-            log_file.write(f"Execution failed with error (process returned non-zero exit code):\n{i['output']}\n")
-          elif not i['timeout']:
-            log_file.write("Execution timed out.\n")
+      if failed_test_instances:
+        log_file.write('\n== FAILED TESTS ==\n')
+      for i in failed_test_instances:
+        log_file.write(f"\n- Failed test: {i['command']}\n")
+        if not i['execute']:
+          log_file.write(f"Execution failed with error (process returned non-zero exit code):\n{i['output']}\n")
+        elif not i['timeout']:
+          log_file.write("Execution timed out.\n")
+        else:
+          mismatched_fields = [field for field in i['field_results'] if not i['field_results'][field]['match']]
+          
+          for mis_field in mismatched_fields:
+            log_file.write(f"- Mismatch with field: {mis_field}\n")
+            log_file.write("-> Obtained output:\n")
+            if isinstance(i['field_results'][mis_field]['obtained'], list):
+              log_file.write('\n'.join(i['field_results'][mis_field]['obtained']))
+            else:
+              log_file.write(i['field_results'][mis_field]['obtained'])
+            log_file.write(f"\n-> Expected output:\n")
+            if isinstance(i['field_results'][mis_field]['expected'], list):
+              log_file.write('\n'.join(i['field_results'][mis_field]['expected']))
+            else:
+              log_file.write(i['field_results'][mis_field]['expected'])
+            log_file.write('\n')
+          log_file.write("--> Complete obtained output:\n")
+          output_len = len(i['output'])
+          if output_len > 1000000000:
+            log_file.write(i['output'][:10000])
+            log_file.write('\n')
           else:
-            mismatched_fields = [field for field in i['field_results'] if not i['field_results'][field]['match']]
-            
-            for mis_field in mismatched_fields:
-              log_file.write(f"- Mismatch with field: {mis_field}\n")
-              log_file.write("-> Obtained output:\n")
-              if isinstance(i['field_results'][mis_field]['obtained'], list):
-                log_file.write('\n'.join(i['field_results'][mis_field]['obtained']))
-              else:
-                log_file.write(i['field_results'][mis_field]['obtained'])
-              log_file.write(f"\n-> Expected output:\n")
-              if isinstance(i['field_results'][mis_field]['expected'], list):
-                log_file.write('\n'.join(i['field_results'][mis_field]['expected']))
-              else:
-                log_file.write(i['field_results'][mis_field]['expected'])
-              log_file.write('\n')
-            log_file.write("--> Complete obtained output:\n")
             log_file.write(i['output'] + '\n')
+        log_file.write('\n' * 2)
+      
+      if passed_test_instances:
+        log_file.write("== PASSED TESTS ==\n")
+      for i in passed_test_instances:
+        log_file.write(f"\n- Passed test: {i['test_name']}\n")
+        log_file.write("-> Complete obtained output:\n")
+        log_file.write(i['output'] + '\n')
+          
