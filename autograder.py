@@ -371,6 +371,8 @@ def main():
     from graders.lab2 import log_results, parse_output, grade_solution, generate_expected_output
   elif args.lab == 'lab3':
     from graders.lab3 import log_results, parse_output, grade_solution, generate_expected_output
+  elif args.lab == 'lab4':
+    from graders.lab4 import log_results, parse_output, grade_solution, generate_expected_output
   
   test_suites_path = os.path.join('data', args.lab, args.test_suites)
   test_files_path = os.path.join('data', args.lab, args.test_files)
