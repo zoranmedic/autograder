@@ -38,7 +38,7 @@
           "value": "yes"
         },
         "PATH": {
-          "match": "exact",
+          "match": "ignored",
           "value": "A => E => F => C => L => Y"
         },
         "PATH_LENGTH": {
@@ -46,11 +46,11 @@
           "value": "6"
         },
         "STATES_VISITED": {
-          "match": "exact",
+          "match": "ignored",
           "value": "21"
         },
         "TOTAL_COST": {
-          "match": "exact",
+          "match": "ignored",
           "value": "216.0"
         }
       },

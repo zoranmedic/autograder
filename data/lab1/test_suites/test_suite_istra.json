@@ -65,7 +65,7 @@
           "value": "yes"
         },
         "PATH": {
-          "match": "exact",
+          "match": "ignored",
           "value": "Pula => Barban => Labin => Lupoglav => Buzet"
         },
         "PATH_LENGTH": {
@@ -73,11 +73,11 @@
           "value": "5"
         },
         "STATES_VISITED": {
-          "match": "exact",
+          "match": "ignored",
           "value": "11"
         },
         "TOTAL_COST": {
-          "match": "exact",
+          "match": "ignored",
           "value": "100.0"
         }
       },

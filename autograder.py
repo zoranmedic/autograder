@@ -35,7 +35,7 @@ def unarchive(archive_path, output_dir='lab_solutions', archive_type='zip'):
     return False, f"Unknown archive type: {archive_type}"
   return True, None
 
-def compile(path_to_solution, language):
+def compile(path_to_solution, language, lab):
   """Compile a single solution, given the path and the pre-determined language
   """
   # Cache current dir, return after compile or in case of errors
@@ -50,6 +50,11 @@ def compile(path_to_solution, language):
     elif language == 'java':
       # Move to solution
       os.chdir(path_to_solution)
+
+      # pom.xml should be copied prior
+      if not os.path.exists('pom.xml'):
+        shutil.copy(os.path.join(cwd, 'data', lab, 'templates', f'{lab}java', 'pom.xml'), path_to_solution)
+
       # Compilation is done via maven
       cmd = 'mvn -q clean compile'.split()
       if os.name != 'nt':
@@ -65,7 +70,7 @@ def compile(path_to_solution, language):
 
       # Makefile should be copied prior
       if not os.path.exists('Makefile'):
-        shutil.copy(os.path.join(cwd, 'Makefile'), path_to_solution)
+        shutil.copy(os.path.join(cwd, 'data', lab, 'templates', f'{lab}cpp', 'Makefile'), path_to_solution)
 
       cmd = ['make' if os.name != 'nt' else 'mingw32-make']
       output = subprocess.Popen(cmd).wait()
@@ -106,135 +111,125 @@ def validate_solution_structure(solution_folder):
 # 1. A logfile with overview for all students
 # 2. A results output file for each student with detailed results
 
-def iterate_student_solutions(solutions_dir=None, evaluation_log_file=None,
-                              test_suites_dir=None, test_directory=None, for_jmbag=None, 
-                              log_results=None, parse_output=None, 
-                              grade_solution=None, generate_expected_output=None):
+def iterate_student_solutions(solutions_dir=None, test_suites_dir=None, test_directory=None, 
+                              for_jmbag=None, log_results=None, parse_output=None, 
+                              grade_solution=None, generate_expected_output=None, lab=None):
   
   student_reports = {}
 
-  with open(evaluation_log_file, 'wt', encoding="utf-8") as log_file:
+  # [Assumption:] the name of the folder for each student is the JMBAG
+  # of the student. It can also be a name, ID or any _unique_ identifier
+  if for_jmbag is not None:
+    solutions = [s for s in os.listdir(solutions_dir) if for_jmbag in s]
+  else:
+    solutions = os.listdir(solutions_dir)
 
-    # [Assumption:] the name of the folder for each student is the JMBAG
-    # of the student. It can also be a name, ID or any _unique_ identifier
-    if for_jmbag is not None:
-      solutions = [s for s in os.listdir(solutions_dir) if for_jmbag in s]
-    else:
-      solutions = os.listdir(solutions_dir)
+  # The sorting here is done to ensure execution order is consistent
+  for idx, dir_name in enumerate(sorted(solutions)):
 
-    # The sorting here is done to ensure execution order is consistent
-    for idx, dir_name in enumerate(sorted(solutions)):
+    # Default to empty dict in case there's an error
+    report = {
+      "id": None,
+      "evaluation_results": {},
+      "unarchive": True,
+      "compile": True,
+      "lang": '',
+      "error": ""
+    }
 
-      # Default to empty dict in case there's an error
-      report = {
-        "id": None,
-        "evaluation_results": {},
-        "unarchive": True,
-        "compile": True,
-        "lang": '',
-        "error": ""
-      }
+    # [Assumption] The folder of the student solution (downloaded) should contain 
+    # _only_ one file -- the archive with the solution
+    student_dir = os.path.join(solutions_dir, dir_name)
+    print(f"Directory: {student_dir}")
+    files = list(os.listdir(student_dir)) # should be of length 1
+    files = [f for f in files if f != 'autograder.log'] # if autograder.log already exists skip it
+    print(f"Files in directory: {files}")
+    student_solution_zip = os.path.join(student_dir, files[0])
 
-      # [Assumption] The folder of the student solution (downloaded) should contain 
-      # _only_ one file -- the archive with the solution
-      student_dir = os.path.join(solutions_dir, dir_name)
-      print(f"Directory: {student_dir}")
-      files = list(os.listdir(student_dir)) # should be of length 1
-      files = [f for f in files if f != 'autograder.log'] # if autograder.log already exists skip it
-      print(f"Files in directory: {files}")
-      student_solution_zip = os.path.join(student_dir, files[0])
+    # [1] Extract the solution into a temporary directory
+    with TemporaryDirectory() as tmpdir:
 
-      # [1] Extract the solution into a temporary directory
-      with TemporaryDirectory() as tmpdir:
+      # [1.1] Try to unarchive solution
+      success, message = unarchive(student_solution_zip, output_dir=tmpdir)
 
-        # [1.1] Try to unarchive solution
-        success, message = unarchive(student_solution_zip, output_dir=tmpdir)
-
-        if not success:
-          # Wrong archive type (maybe allow multiple archive types to be extracted)
-          report["unarchive"] = False
-          _, archive_name = os.path.split(student_solution_zip)
-          error_log = f"Wrong archive type {archive_name}"
-          report["error"] = error_log
-          student_reports[dir_name] = report
-          log_results(log_file, report, student_dir)
-          with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
-            log_results(student_log, report, verbose=True)
-          continue
-
-        report['id'] = files[0].split('.')[0]
-
-        # [1.2] Check if structure looks like it should
-        validation_result, solution_root, error_meta = validate_solution_structure(tmpdir)
-
-        if solution_root is None:
-          # Log error, assign 0 points and continue to next solution
-          error_log = f"{validation_result} {error_meta}"
-          report["unarchive"] = False
-          report["error"] = error_log
-          student_reports[dir_name] = report
-          log_results(log_file, report, student_dir)
-          with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
-            log_results(student_log, report, verbose=True)
-          continue
-
-        # Determine the language of the solution
-        if solution_root.endswith('py'):
-          lang = 'python'
-        elif solution_root.endswith('java'):
-          lang = 'java'
-        elif solution_root.endswith('cpp'):
-          lang = 'cpp'
-        else:
-          # Invalid naming -- log error, assign 0 points
-          report["unarchive"] = False
-          error_log = f"Unknown language {solution_root}"
-          report["error"] = error_log
-          student_reports[dir_name] = report
-          log_results(log_file, report, student_dir)
-          with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
-            log_results(student_log, report, verbose=True)
-          continue
-        report["lang"] = lang
-
-        # [2] Compile the solution
-        solution_dir = os.path.join(tmpdir, solution_root)
-        compile_result, compile_error = compile(solution_dir, lang)
-        if not compile_result:
-          # Log error, assign 0 points and continue to next solution
-          report["compile"] = False
-          report["error"] = f"Compile error: [{lang}]: {compile_error}"
-          student_reports[dir_name] = report
-          log_results(log_file, report, student_dir)
-          print(os.getcwd())
-          with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
-            log_results(student_log, report, verbose=True)
-          continue
-
-        # [3] Run the solution
-        # Compile and unpack OK, copy files and run evaluation
-        # [3.1] Copy required test files and metadata into the temporary directory
-        copy_tree(test_directory, solution_dir)
-
-        # [3.2] Actually evaluate solution on test suites
-        for filename in os.listdir(test_suites_dir):
-          if filename.endswith('.json'):
-            test_suite = json.load(open(os.path.join(test_suites_dir, filename)))
-            results = run_evaluation(solution_dir, lang, test_suite=test_suite, 
-                                     parse_output=parse_output, grade_solution=grade_solution,
-                                     generate_expected_output=generate_expected_output)
-            for subtask in results:
-              if subtask not in report["evaluation_results"]:
-                report["evaluation_results"][subtask] = []
-              report["evaluation_results"][subtask] += results[subtask]
-
+      if not success:
+        # Wrong archive type (maybe allow multiple archive types to be extracted)
+        report["unarchive"] = False
+        _, archive_name = os.path.split(student_solution_zip)
+        error_log = f"Wrong archive type {archive_name}"
+        report["error"] = error_log
         student_reports[dir_name] = report
-    
-      # Log general student's results into a general file (log_file) 
-      log_results(log_file, report)
-      # Log detailed student's results into student's log file (inside student_dir)
-      with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
-        log_results(student_log, report, verbose=True)
+        with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
+          log_results(student_log, report, verbose=True)
+        continue
+
+      report['id'] = files[0].split('.')[0]
+
+      # [1.2] Check if structure looks like it should
+      validation_result, solution_root, error_meta = validate_solution_structure(tmpdir)
+
+      if solution_root is None:
+        # Log error, assign 0 points and continue to next solution
+        error_log = f"{validation_result} {error_meta}"
+        report["unarchive"] = False
+        report["error"] = error_log
+        student_reports[dir_name] = report
+        with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
+          log_results(student_log, report, verbose=True)
+        continue
+
+      # Determine the language of the solution
+      if solution_root.endswith('py'):
+        lang = 'python'
+      elif solution_root.endswith('java'):
+        lang = 'java'
+      elif solution_root.endswith('cpp'):
+        lang = 'cpp'
+      else:
+        # Invalid naming -- log error, assign 0 points
+        report["unarchive"] = False
+        error_log = f"Unknown language {solution_root}"
+        report["error"] = error_log
+        student_reports[dir_name] = report
+        with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
+          log_results(student_log, report, verbose=True)
+        continue
+      report["lang"] = lang
+
+      # [2] Compile the solution
+      solution_dir = os.path.join(tmpdir, solution_root)
+      compile_result, compile_error = compile(solution_dir, lang, lab)
+      if not compile_result:
+        # Log error, assign 0 points and continue to next solution
+        report["compile"] = False
+        report["error"] = f"Compile error: [{lang}]: {compile_error}"
+        student_reports[dir_name] = report
+        with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
+          log_results(student_log, report, verbose=True)
+        continue
+
+      # [3] Run the solution
+      # Compile and unpack OK, copy files and run evaluation
+      # [3.1] Copy required test files and metadata into the temporary directory
+      copy_tree(test_directory, solution_dir)
+
+      # [3.2] Actually evaluate solution on test suites
+      for filename in os.listdir(test_suites_dir):
+        if filename.endswith('.json'):
+          test_suite = json.load(open(os.path.join(test_suites_dir, filename)))
+          results = run_evaluation(solution_dir, lang, test_suite=test_suite, 
+                                    parse_output=parse_output, grade_solution=grade_solution,
+                                    generate_expected_output=generate_expected_output)
+          for subtask in results:
+            if subtask not in report["evaluation_results"]:
+              report["evaluation_results"][subtask] = []
+            report["evaluation_results"][subtask] += results[subtask]
+
+      student_reports[dir_name] = report
+  
+    # Log detailed student's results into student's log file (inside student_dir)
+    with open(os.path.join(student_dir, 'autograder.log'), 'wt', encoding="utf-8") as student_log:
+      log_results(student_log, report, verbose=True)
 
   return student_reports
 
@@ -350,7 +345,9 @@ def execute(path_to_solution, language, arguments):
   return CODE_OK, result, command
 
 def parse_arguments():
-  parser = argparse.ArgumentParser(description='AI Labs autograder')
+  parser = argparse.ArgumentParser(
+    description='AI Labs autograder', 
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
   parser.add_argument('lab', type=str, default='lab1')
   parser.add_argument('-solutions', type=str, default='solutions',
                         help='Directory with student solutions')
@@ -358,8 +355,6 @@ def parse_arguments():
                         help='Name of the directory inside data/lab[x] folder containing test_suites')
   parser.add_argument('-test_files', type=str, default='files',
                         help='Name of the directory inside data/lab[x] folder containing files used for testing')
-  parser.add_argument('-evaluation_log', type=str, default='full.log',
-                        help='Path to file with evalauation log output')
   parser.add_argument('-for_jmbag', type=str, default=None,
                         help='Run only for student JBMAG (name of directory)')
   parser.add_argument('--root', default=False, action='store_true',
@@ -374,30 +369,31 @@ def main():
     from graders.lab1 import log_results, parse_output, grade_solution, generate_expected_output
   elif args.lab == 'lab2':
     from graders.lab2 import log_results, parse_output, grade_solution, generate_expected_output
+  elif args.lab == 'lab3':
+    from graders.lab3 import log_results, parse_output, grade_solution, generate_expected_output
   
   test_suites_path = os.path.join('data', args.lab, args.test_suites)
   test_files_path = os.path.join('data', args.lab, args.test_files)
   solutions_path = args.solutions
-  evaluation_log_file = args.evaluation_log
 
   iterator_partial = partial(
     iterate_student_solutions,
-    evaluation_log_file=evaluation_log_file, 
     test_suites_dir=test_suites_path,
     test_directory=test_files_path,
     for_jmbag=args.for_jmbag,
     log_results=log_results,
     parse_output=parse_output,
     grade_solution=grade_solution,
-    generate_expected_output=generate_expected_output 
+    generate_expected_output=generate_expected_output,
+    lab=args.lab
   )
 
-  if args.root: # solutions contains folder for each lab group
+  if args.root: # solutions folder contains folder for each lab group
     for folder in sorted(os.listdir(solutions_path)):
       group_dir = os.path.join(solutions_path, folder)
       points = iterator_partial(group_dir)
       print(f"Folder {group_dir} done.")
-  else: # solutions contains all solutions in a single folder
+  else: # solutions folder contains all submissions in a single folder
     points = iterator_partial(solutions_path)
   
   end = time.time()

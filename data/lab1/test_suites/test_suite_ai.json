@@ -65,7 +65,7 @@
           "value": "yes"
         },
         "PATH": {
-          "match": "exact",
+          "match": "ignored",
           "value": "enroll_artificial_intelligence => fail_lab => fail_course"
         },
         "PATH_LENGTH": {
@@ -73,11 +73,11 @@
           "value": "3"
         },
         "STATES_VISITED": {
-          "match": "exact",
+          "match": "ignored",
           "value": "6"
         },
         "TOTAL_COST": {
-          "match": "exact",
+          "match": "ignored",
           "value": "21.0"
         }
       },
